@@ -1,0 +1,119 @@
+﻿AppType=JavaFX
+Build1=Default,b4j.example
+File1=main.bjl
+FileGroup1=Default Group
+Group=Default Group
+Library1=jcore
+Library2=jfx
+Library3=threading
+Library4=javaobject
+Module1=git
+Module2=tika
+NumberOfFiles=1
+NumberOfLibraries=4
+NumberOfModules=2
+Version=7.8
+@EndOfDesignText@
+#Region Project Attributes 
+	#MainFormWidth: 600
+	#MainFormHeight: 600 
+#End Region
+
+'-------- for jgit
+#AdditionalJar: org.eclipse.jgit-5.1.1.201809181055-r
+#AdditionalJar: jsch-0.1.54
+#AdditionalJar: jzlib-1.1.1
+#AdditionalJar: JavaEWAH-1.1.6
+#AdditionalJar: slf4j-api-1.7.2
+#AdditionalJar: slf4j-simple-1.7.25
+
+#AdditionalJar: tika-app-1.20
+
+Sub Process_Globals
+	Private fx As JFX
+	Private MainForm As Form
+	Private ListView1 As ListView
+	Private TextField1 As TextField
+	Private TextField2 As TextField
+	Private TextField3 As TextField
+End Sub
+
+Sub AppStart (Form1 As Form, Args() As String)
+	MainForm = Form1
+	MainForm.RootPane.LoadLayout("main") 'Load the layout file.
+	MainForm.Show
+End Sub
+
+'Return true to allow the default exceptions handler to handle the uncaught exception.
+Sub Application_Error (Error As Exception, StackTrace As String) As Boolean
+	Return True
+End Sub
+
+Sub ProcessButton_MouseClicked (EventData As MouseEvent)
+	Dim dirPath As String=ListView1.Tag
+	Dim gitDirPath As String = File.Combine(dirPath,"git")
+	Dim projectGit As git
+	If File.Exists(gitDirPath,"")=False Then
+		File.MakeDir(dirPath,"git")
+	End If
+	projectGit.Initialize(gitDirPath)
+	For Each filename As String In ListView1.Items
+		Dim lastModified As Long=File.LastModified(dirPath,filename)
+		Dim message As String
+		message=DateTime.Date(lastModified)&" "&DateTime.Time(lastModified)
+		Dim content As String=tika.getText(File.Combine(dirPath,filename))
+		File.WriteString(gitDirPath,"content.txt",content)		
+		projectGit.add("content.txt")
+		projectGit.commit("Update: "&message,TextField2.Text,TextField3.Text)
+	Next
+End Sub
+
+Sub ImportButton_MouseClicked (EventData As MouseEvent)
+	Dim dc As DirectoryChooser
+	dc.Initialize
+	Dim path As String=dc.Show(MainForm)
+	ListView1.Tag=path
+	Dim filesMap As Map
+	filesMap.Initialize
+	For Each filename As String In File.ListFiles(path)
+		filesMap.Put(File.LastModified(path,filename),filename)
+	Next
+	Dim files As List
+	files=FilesSortedByDate(filesMap)
+	For Each filename As String In files
+		If filename.ToLowerCase.EndsWith(TextField1.Text) Then
+			If DateIsNewer(filename,path) Then
+				ListView1.Items.Add(filename)
+				File.WriteString(path,"newest",File.LastModified(path,filename))
+			End If
+		End If
+	Next
+End Sub
+
+Sub FilesSortedByDate(filesMap As Map) As List
+	Dim files As List
+	files.Initialize
+	Dim dateSorted As List
+	dateSorted.Initialize
+	For Each date As Long In filesMap.keys
+		dateSorted.Add(date)
+	Next
+	dateSorted.Sort(True)
+	For Each date As Long In dateSorted
+		files.Add(filesMap.Get(date))
+	Next
+	Return files
+End Sub
+
+Sub DateIsNewer(FileName As String,dirPath As String) As Boolean
+	Dim date As Long=File.LastModified(dirPath,FileName)
+	If File.Exists(dirPath,"newest") Then
+		If date<=File.ReadString(dirPath,"newest") Then
+			Return False
+		Else
+			Return True
+		End If
+	Else
+		Return True
+	End If
+End Sub
